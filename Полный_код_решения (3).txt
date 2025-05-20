@@ -1,0 +1,457 @@
+import pandas as pd
+import sqlite3
+
+excel_file = 'C:/Users/badbo/OneDrive/Рабочий стол/DemoEx/WinFormsApp1/WinFormsApp1/Vakansi.xlsx'
+
+df = pd.read_excel(excel_file)
+
+conn = sqlite3.connect('C:/Users/badbo/OneDrive/Рабочий стол/DemoEx/WinFormsApp1/WinFormsApp1/mydata.db')
+
+df.to_sql('Vakansi', conn, if_exists='append', index=False)
+
+conn.close()
+
+print("Импорт завершён.")
+
+
+update Vakansi set SpecializeId = (select Id from Specialize where Specialize.Name = Vakansi.SpecializeId);
+
+
+
+
+
+📁 Установка и зависимости (через NuGet CLI)
+================================================================================
+# Команды для установки зависимостей
+dotnet add package Microsoft.EntityFrameworkCore
+dotnet add package Microsoft.EntityFrameworkCore.Sqlite
+dotnet add package Microsoft.EntityFrameworkCore.Tools
+
+📁 Модель данных (Entity Framework модели)
+================================================================================
+// Models/Материалы.cs
+internal class Материалы
+{
+    public int Id { get; set; }
+    public string Название { get; set; }
+    public List<Мебель> Мебели { get; set; } = new();
+}
+
+// Models/Фасон.cs
+internal class Фасон
+{
+    public int Id { get; set; }
+    public string? Название { get; set; }
+    public List<Мебель> Мебели { get; set; } = new();
+}
+
+// Models/Цеха.cs
+internal class Цеха
+{
+    public int Id { get; set; }
+    public string? Название { get; set; }
+}
+
+// Models/Мебель.cs
+internal class Мебель
+{
+    public int Id { get; set; }
+    public string? Название { get; set; }
+    public int ФасонId { get; set; }
+    public Фасон Фасон { get; set; }
+    public int МатериалыId { get; set; }
+    public Материалы Материалы { get; set; }
+    public List<ВремяПроизводства> ВремяПроизводстваs { get; set; }
+}
+
+// Models/ВремяПроизводства.cs
+internal class ВремяПроизводства
+{
+    public int Id { get; set; }
+    public string? Name { get; set; }
+    public int МебельId { get; set; }
+    public Мебель Мебель { get; set; }
+    public int ЦехаId { get; set; }
+    public Цеха Цеха { get; set; }
+    public int? Время { get; set; }
+}
+
+📁 DbContext и настройки БД
+================================================================================
+// Data/AppDbContext.cs
+using Microsoft.EntityFrameworkCore;
+
+public class AppDbContext : DbContext
+{
+    public DbSet<Материалы> Материалы { get; set; }
+    public DbSet<Фасон> Фасоны { get; set; }
+    public DbSet<Цеха> Цехи { get; set; }
+    public DbSet<Мебель> Мебели { get; set; }
+    public DbSet<ВремяПроизводства> ВремяПроизводства { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlite("Data Source=mebel.db");
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Мебель>()
+            .HasOne(m => m.Фасон)
+            .WithMany(f => f.Мебели)
+            .HasForeignKey(m => m.ФасонId);
+
+        modelBuilder.Entity<Мебель>()
+            .HasOne(m => m.Материалы)
+            .WithMany(mt => mt.Мебели)
+            .HasForeignKey(m => m.МатериалыId);
+
+        modelBuilder.Entity<ВремяПроизводства>()
+            .HasOne(vp => vp.Мебель)
+            .WithMany(m => m.ВремяПроизводстваs)
+            .HasForeignKey(vp => vp.МебельId);
+
+        modelBuilder.Entity<ВремяПроизводства>()
+            .HasOne(vp => vp.Цеха)
+            .WithMany()
+            .HasForeignKey(vp => vp.ЦехаId);
+    }
+}
+
+📁 Главная форма - список мебели
+================================================================================
+// Forms/MainForm.cs
+// Код для отображения списка мебели, кнопок для добавления, редактирования и переходов между формами
+
+📁 Форма добавления/редактирования мебели
+================================================================================
+// Forms/FurnitureForm.cs
+// Форма для создания и редактирования объектов мебели
+
+📁 Форма списка цехов
+================================================================================
+// Forms/WorkshopsForm.cs
+// Отображение списка цехов, связанных с мебелью через время производства
+
+📁 Форма времени производства и расчета суммарного времени
+================================================================================
+// Forms/ProductionTimeForm.cs
+// Подсчет и отображение общего времени производства для каждого изделия
+
+📁 Исключения, возврат и интерфейс
+================================================================================
+// Обработка ошибок, кнопки "Назад", возврат между формами, отображение сообщений и комментариев
+
+📁 Главная форма - список мебели
+================================================================================
+// Forms/MainForm.cs
+using System;
+using System.Linq;
+using System.Windows.Forms;
+
+public class MainForm : Form
+{
+    private DataGridView dgvMebel;
+    private Button btnAdd, btnEdit, btnWorkshops, btnProductionTime;
+
+    public MainForm()
+    {
+        Text = "Список продукции";
+        Width = 800;
+        Height = 600;
+
+        dgvMebel = new DataGridView { Dock = DockStyle.Top, Height = 400, ReadOnly = true, AutoGenerateColumns = true };
+        btnAdd = new Button { Text = "Добавить", Left = 10, Top = 420, Width = 100 };
+        btnEdit = new Button { Text = "Редактировать", Left = 120, Top = 420, Width = 100 };
+        btnWorkshops = new Button { Text = "Цеха", Left = 230, Top = 420, Width = 100 };
+        btnProductionTime = new Button { Text = "Время производства", Left = 340, Top = 420, Width = 160 };
+
+        Controls.Add(dgvMebel);
+        Controls.Add(btnAdd);
+        Controls.Add(btnEdit);
+        Controls.Add(btnWorkshops);
+        Controls.Add(btnProductionTime);
+
+        Load += MainForm_Load;
+        btnAdd.Click += (s, e) => new FurnitureForm().ShowDialog();
+        btnEdit.Click += (s, e) => {
+            if (dgvMebel.CurrentRow?.DataBoundItem is Мебель selected)
+                new FurnitureForm(selected.Id).ShowDialog();
+        };
+        btnWorkshops.Click += (s, e) => new WorkshopsForm().ShowDialog();
+        btnProductionTime.Click += (s, e) => new ProductionTimeForm().ShowDialog();
+    }
+
+    private void MainForm_Load(object sender, EventArgs e)
+    {
+        using var db = new AppDbContext();
+        dgvMebel.DataSource = db.Мебели
+            .Select(m => new { m.Id, m.Название, Материал = m.Материалы.Название, Фасон = m.Фасон.Название })
+            .ToList();
+    }
+}
+
+📁 Форма добавления/редактирования мебели
+================================================================================
+// Forms/FurnitureForm.cs
+using System;
+using System.Linq;
+using System.Windows.Forms;
+
+public class FurnitureForm : Form
+{
+    private ComboBox cbMaterials, cbFason;
+    private TextBox tbName;
+    private Button btnSave;
+    private int? furnitureId;
+
+    public FurnitureForm(int? id = null)
+    {
+        furnitureId = id;
+        Text = id == null ? "Добавить мебель" : "Редактировать мебель";
+        Width = 400;
+        Height = 250;
+
+        Label lblName = new Label { Text = "Название:", Left = 10, Top = 20 };
+        tbName = new TextBox { Left = 100, Top = 20, Width = 250 };
+
+        Label lblMaterial = new Label { Text = "Материал:", Left = 10, Top = 60 };
+        cbMaterials = new ComboBox { Left = 100, Top = 60, Width = 250 };
+
+        Label lblFason = new Label { Text = "Фасон:", Left = 10, Top = 100 };
+        cbFason = new ComboBox { Left = 100, Top = 100, Width = 250 };
+
+        btnSave = new Button { Text = "Сохранить", Left = 150, Top = 150, Width = 100 };
+
+        Controls.AddRange(new Control[] { lblName, tbName, lblMaterial, cbMaterials, lblFason, cbFason, btnSave });
+
+        Load += FurnitureForm_Load;
+        btnSave.Click += BtnSave_Click;
+    }
+
+    private void FurnitureForm_Load(object sender, EventArgs e)
+    {
+        using var db = new AppDbContext();
+        cbMaterials.DataSource = db.Материалы.ToList();
+        cbMaterials.DisplayMember = "Название";
+        cbMaterials.ValueMember = "Id";
+
+        cbFason.DataSource = db.Фасоны.ToList();
+        cbFason.DisplayMember = "Название";
+        cbFason.ValueMember = "Id";
+
+        if (furnitureId != null)
+        {
+            var item = db.Мебели.Find(furnitureId);
+            tbName.Text = item.Название;
+            cbMaterials.SelectedValue = item.МатериалыId;
+            cbFason.SelectedValue = item.ФасонId;
+        }
+    }
+
+    private void BtnSave_Click(object sender, EventArgs e)
+    {
+        using var db = new AppDbContext();
+        Мебель item = furnitureId == null ? new Мебель() : db.Мебели.Find(furnitureId);
+        item.Название = tbName.Text;
+        item.МатериалыId = (int)cbMaterials.SelectedValue;
+        item.ФасонId = (int)cbFason.SelectedValue;
+
+        if (furnitureId == null)
+            db.Мебели.Add(item);
+
+        db.SaveChanges();
+        Close();
+    }
+}
+
+📁 Форма списка цехов
+================================================================================
+// Forms/WorkshopsForm.cs
+using System.Linq;
+using System.Windows.Forms;
+
+public class WorkshopsForm : Form
+{
+    private DataGridView dgv;
+
+    public WorkshopsForm()
+    {
+        Text = "Список цехов";
+        Width = 500;
+        Height = 400;
+        dgv = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AutoGenerateColumns = true };
+        Controls.Add(dgv);
+
+        Load += (s, e) =>
+        {
+            using var db = new AppDbContext();
+            dgv.DataSource = db.Цехи.ToList();
+        };
+    }
+}
+
+📁 Форма времени производства и расчета суммарного времени
+================================================================================
+// Forms/ProductionTimeForm.cs
+using System.Linq;
+using System.Windows.Forms;
+
+public class ProductionTimeForm : Form
+{
+    private DataGridView dgv;
+
+    public ProductionTimeForm()
+    {
+        Text = "Общее время производства по мебели";
+        Width = 600;
+        Height = 400;
+        dgv = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AutoGenerateColumns = true };
+        Controls.Add(dgv);
+
+        Load += (s, e) =>
+        {
+            using var db = new AppDbContext();
+            dgv.DataSource = db.ВремяПроизводства
+                .GroupBy(vp => vp.Мебель.Название)
+                .Select(g => new { Название = g.Key, ОбщееВремя = g.Sum(x => x.Время ?? 0) })
+                .ToList();
+        };
+    }
+}
+
+📁 Главная форма - список мебели (Form1.cs)
+================================================================================
+// Form1.cs
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Windows.Forms;
+using ФабрицаМебели.Дата;
+
+namespace ФабрицаМебели
+{
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            LoadDB();
+        }
+
+        private void LoadDB()
+        {
+            using (var context = new AppDbContext())
+            {
+                var МебельСДеталями = context.Мебель
+                    .Include(m => m.Фасон)
+                    .Include(m => m.Материалы)
+                    .Include(m => m.ВремяПроизводстваs).ThenInclude(v => v.Цеха)
+                    .ToList();
+
+                var данные = МебельСДеталями.Select(m => new
+                {
+                    Id = m.Id,
+                    Название = m.Название,
+                    Фасон = m.Фасон.Название,
+                    Материал = m.Материалы.Название,
+                    ВремяПроизводства = m.ВремяПроизводстваs.Sum(v => v.Время ?? 0)
+                }).ToList();
+
+                dataGridView1.DataSource = данные;
+            }
+        }
+
+        private void buttonAdd_Click(object sender, EventArgs e)
+        {
+            var form = new Form2();
+            if (form.ShowDialog() == DialogResult.OK)
+                LoadDB();
+        }
+
+        private void buttonEdit_Click(object sender, EventArgs e)
+        {
+            if (dataGridView1.CurrentRow == null) return;
+
+            int id = (int)dataGridView1.CurrentRow.Cells["Id"].Value;
+            var form = new Form2(id);
+            if (form.ShowDialog() == DialogResult.OK)
+                LoadDB();
+        }
+
+        private void buttonWorkshops_Click(object sender, EventArgs e)
+        {
+            new WorkshopsForm().ShowDialog();
+        }
+
+        private void buttonTimeSummary_Click(object sender, EventArgs e)
+        {
+            new ProductionTimeForm().ShowDialog();
+        }
+    }
+}
+
+📁 Форма добавления/редактирования мебели (Form2.cs)
+================================================================================
+// Form2.cs
+using System;
+using System.Linq;
+using System.Windows.Forms;
+using ФабрицаМебели.Дата;
+
+namespace ФабрицаМебели
+{
+    public partial class Form2 : Form
+    {
+        private int? furnitureId;
+
+        public Form2(int? id = null)
+        {
+            InitializeComponent();
+            furnitureId = id;
+        }
+
+        private void Form2_Load(object sender, EventArgs e)
+        {
+            using var db = new AppDbContext();
+
+            comboBoxMaterial.DataSource = db.Материалы.ToList();
+            comboBoxMaterial.DisplayMember = "Название";
+            comboBoxMaterial.ValueMember = "Id";
+
+            comboBoxFason.DataSource = db.Фасоны.ToList();
+            comboBoxFason.DisplayMember = "Название";
+            comboBoxFason.ValueMember = "Id";
+
+            if (furnitureId != null)
+            {
+                var мебель = db.Мебель.Find(furnitureId);
+                textBoxName.Text = мебель.Название;
+                comboBoxMaterial.SelectedValue = мебель.МатериалыId;
+                comboBoxFason.SelectedValue = мебель.ФасонId;
+            }
+        }
+
+        private void buttonSave_Click(object sender, EventArgs e)
+        {
+            using var db = new AppDbContext();
+            Мебель мебель = furnitureId == null ? new Мебель() : db.Мебель.Find(furnitureId);
+
+            мебель.Название = textBoxName.Text;
+            мебель.МатериалыId = (int)comboBoxMaterial.SelectedValue;
+            мебель.ФасонId = (int)comboBoxFason.SelectedValue;
+
+            if (furnitureId == null)
+                db.Мебель.Add(мебель);
+
+            db.SaveChanges();
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+    }
+}
+
