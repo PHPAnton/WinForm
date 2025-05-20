@@ -455,3 +455,97 @@ namespace ФабрицаМебели
     }
 }
 
+
+using System;
+using System.Drawing;
+using System.Linq;
+using System.Windows.Forms;
+using ФабрицаМебели.Дата;
+using ФабрицаМебели.Моделька;
+
+namespace ФабрицаМебели
+{
+    public partial class FormCreate : Form
+    {
+        private readonly AppDbContext _context;
+
+        private Label labelName;
+        private TextBox textBoxNamed;
+        private Label labelFason;
+        private ComboBox comboBoxFason;
+        private Label labelMaterial;
+        private ComboBox comboBoxMaterial;
+        private Button buttonSave;
+        private Button buttonCancel;
+
+        public FormCreate()
+        {
+            _context = new AppDbContext();
+            InitializeComponent();
+            LoadComboBoxes();
+        }
+
+        private void InitializeComponent()
+        {
+            this.Text = "Создание новой мебели";
+            this.Size = new Size(400, 300);
+            this.StartPosition = FormStartPosition.CenterScreen;
+
+            labelName = new Label() { Text = "Название:", Location = new Point(20, 20), AutoSize = true };
+            textBoxNamed = new TextBox() { Location = new Point(120, 20), Width = 220 };
+
+            labelFason = new Label() { Text = "Фасон:", Location = new Point(20, 60), AutoSize = true };
+            comboBoxFason = new ComboBox() { Location = new Point(120, 60), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            labelMaterial = new Label() { Text = "Материал:", Location = new Point(20, 100), AutoSize = true };
+            comboBoxMaterial = new ComboBox() { Location = new Point(120, 100), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            buttonSave = new Button() { Text = "Сохранить", Location = new Point(120, 160), Width = 100 };
+            buttonCancel = new Button() { Text = "Отмена", Location = new Point(240, 160), Width = 100 };
+
+            buttonSave.Click += buttonSave_Click;
+            buttonCancel.Click += (s, e) => this.Close();
+
+            this.Controls.AddRange(new Control[] {
+                labelName, textBoxNamed,
+                labelFason, comboBoxFason,
+                labelMaterial, comboBoxMaterial,
+                buttonSave, buttonCancel
+            });
+        }
+
+        private void LoadComboBoxes()
+        {
+            comboBoxFason.DataSource = _context.Фасон.ToList();
+            comboBoxFason.DisplayMember = "Название";
+            comboBoxFason.ValueMember = "Id";
+
+            comboBoxMaterial.DataSource = _context.Материалы.ToList();
+            comboBoxMaterial.DisplayMember = "Название";
+            comboBoxMaterial.ValueMember = "Id";
+        }
+
+        private void buttonSave_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(textBoxNamed.Text))
+            {
+                MessageBox.Show("Введите название мебели.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var newItem = new Мебель
+            {
+                Название = textBoxNamed.Text,
+                ФасонId = (int)comboBoxFason.SelectedValue,
+                МатериалыId = (int)comboBoxMaterial.SelectedValue
+            };
+
+            _context.Мебель.Add(newItem);
+            _context.SaveChanges();
+
+            MessageBox.Show("Мебель успешно добавлена.", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            this.Close();
+        }
+    }
+}
+
